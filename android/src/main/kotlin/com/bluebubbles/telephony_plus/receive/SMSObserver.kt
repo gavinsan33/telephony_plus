@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.database.Cursor
-import android.database.CursorIndexOutOfBoundsException
 import android.net.Uri
 import android.os.Handler
 import android.provider.Telephony
@@ -44,18 +43,13 @@ class SMSObserver(val context: Context, handler: Handler, val listener: (context
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED)
             return
 
-        var cursor = context.contentResolver.query(
+        val dataObject = HashMap<String, Any>()
+        // only the newest row is needed; closed here so the early returns below don't leak it
+        context.contentResolver.query(
             Uri.parse("content://mms-sms/complete-conversations"),
             arrayOf("ct_t", "_id", "m_type", "type", "body", "address", "thread_id", "date"), null, null, null)
-                ?: return
-
-//        cursor.moveToFirst()
-
-        cursor.moveToLast()
-//        Log.i("TESTDATE", cursor.getLong(cursor.getColumnIndexOrThrow("date")).toString())
-
-        val dataObject = HashMap<String, Any>()
-        try {
+                ?.use { cursor ->
+            if (!cursor.moveToLast()) return
             // get columns in the table, their data types, and their values. Insert into the
             // data object for the message.
             for (columnName in cursor.columnNames) {
@@ -74,9 +68,7 @@ class SMSObserver(val context: Context, handler: Handler, val listener: (context
                     dataObject[columnName] = value
                 }
             }
-        } catch (e: CursorIndexOutOfBoundsException) {
-            return
-        }
+        } ?: return
 
         Log.i("TESTINIT", dataObject.toString())
 
@@ -227,8 +219,6 @@ class SMSObserver(val context: Context, handler: Handler, val listener: (context
                 messageMap
         )
         Log.i("TEST", messageMap.toString())
-
-        cursor.close()
     }
 
 }
